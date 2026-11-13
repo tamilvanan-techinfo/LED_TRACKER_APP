@@ -3,6 +3,10 @@ import {
   Box,
   Button,
   Chip,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
   IconButton,
   MenuItem,
   Select,
@@ -412,6 +416,13 @@ function ColorControlPanel({ onApplyColor, onApplyDynamic, onApplySettings: onAp
   // dynamic content state
   const [mediaFiles, setMediaFiles] = useState([]);
   const [activeId, setActiveId] = useState(null);
+  // Saved static colors. This playlist remains available when switching tabs.
+  const [colorPlaylist, setColorPlaylist] = useState([]);
+  const [activePlaylistColorId, setActivePlaylistColorId] = useState(null);
+  const [colorDialogOpen, setColorDialogOpen] = useState(false);
+  const [playlistColorName, setPlaylistColorName] = useState("");
+  const [playlistRgb, setPlaylistRgb] = useState({ r: 255, g: 255, b: 255 });
+  const [playlistRgbError, setPlaylistRgbError] = useState("");
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -548,6 +559,78 @@ function ColorControlPanel({ onApplyColor, onApplyDynamic, onApplySettings: onAp
     invoke("send_to_clients", { message: "data" }).catch((error) =>
       console.error("send_to_clients failed:", error)
     );
+  };
+
+  // Open a dedicated RGB editor when creating a playlist color.
+  const handleAddColorToPlaylist = () => {
+    setPlaylistColorName(`Color ${colorPlaylist.length + 1}`);
+    setPlaylistRgb({ r: rgb.r, g: rgb.g, b: rgb.b });
+    setPlaylistRgbError("");
+    setColorDialogOpen(true);
+  };
+
+  const updatePlaylistRgb = (channel, value) => {
+    const cleaned = String(value).replace(/\D/g, "").slice(0, 3);
+    setPlaylistRgb((prev) => ({ ...prev, [channel]: cleaned === "" ? "" : Number(cleaned) }));
+    setPlaylistRgbError("");
+  };
+
+  const playlistRgbValid = [playlistRgb.r, playlistRgb.g, playlistRgb.b].every(
+    (value) => value !== "" && Number.isInteger(Number(value)) && Number(value) >= 0 && Number(value) <= 255
+  );
+  const playlistHex = playlistRgbValid
+    ? `#${rgbToHex({ r: Number(playlistRgb.r), g: Number(playlistRgb.g), b: Number(playlistRgb.b) })}`
+    : "#000000";
+
+  const handleSavePlaylistColor = () => {
+    if (!playlistRgbValid) {
+      setPlaylistRgbError("Enter RGB values from 0 to 255.");
+      return;
+    }
+    const savedRgb = { r: Number(playlistRgb.r), g: Number(playlistRgb.g), b: Number(playlistRgb.b) };
+    const item = {
+      id: `color-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      name: playlistColorName.trim() || `Color ${colorPlaylist.length + 1}`,
+      mode: "RGB",
+      hex: `#${rgbToHex(savedRgb)}`,
+      rgb: savedRgb,
+      cmyk: rgbToCmyk(savedRgb),
+      gradientType: "Solid",
+      gradientDirection: "Linear",
+    };
+    setColorPlaylist((prev) => [...prev, item]);
+    setActivePlaylistColorId(item.id);
+    setColorDialogOpen(false);
+    setStatus(`${item.name} saved to playlist`);
+  };
+
+  const handleApplyPlaylistColor = (item) => {
+    if (!item) return;
+
+    setActivePlaylistColorId(item.id);
+    onApplyColor?.({
+      mode: item.mode,
+      hex: item.hex,
+      rgb: item.rgb,
+      cmyk: item.cmyk,
+      gradientType: item.gradientType,
+      gradientDirection: item.gradientDirection,
+    });
+    setStatus(`${item.hex} applied from playlist`);
+    invoke("send_to_clients", { message: "data" }).catch((error) =>
+      console.error("send_to_clients failed:", error)
+    );
+  };
+
+  const handleRemovePlaylistColor = (id) => {
+    setColorPlaylist((prev) => prev.filter((item) => item.id !== id));
+    setActivePlaylistColorId((current) => current === id ? null : current);
+  };
+
+  const handleClearColorPlaylist = () => {
+    setColorPlaylist([]);
+    setActivePlaylistColorId(null);
+    setStatus("Color playlist cleared");
   };
 
   const handleResetColor = () => {
@@ -1014,6 +1097,66 @@ function ColorControlPanel({ onApplyColor, onApplyDynamic, onApplySettings: onAp
         onChange={handleFilesSelected}
       />
 
+      <Dialog
+        open={colorDialogOpen}
+        onClose={() => setColorDialogOpen(false)}
+        fullWidth
+        maxWidth="xs"
+        PaperProps={{ sx: { bgcolor: THEME.card, color: THEME.text, border: `1px solid ${THEME.border}` } }}
+      >
+        <DialogTitle sx={{ fontSize: 15, fontWeight: 700 }}>Create RGB Playlist Color</DialogTitle>
+        <DialogContent>
+          <Stack spacing={1.5} sx={{ pt: 0.5 }}>
+            <TextField
+              label="Color name"
+              size="small"
+              value={playlistColorName}
+              onChange={(e) => setPlaylistColorName(e.target.value)}
+              sx={fieldSx}
+            />
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1.25, p: 1, bgcolor: THEME.field, border: `1px solid ${THEME.border}`, borderRadius: 1.5 }}>
+              <Box sx={{ width: 56, height: 56, borderRadius: 1.25, bgcolor: playlistHex, border: "1px solid rgba(255,255,255,0.35)", flexShrink: 0 }} />
+              <Box sx={{ minWidth: 0 }}>
+                <Typography sx={{ fontSize: 12, fontWeight: 700 }}>{playlistHex.toUpperCase()}</Typography>
+                <Typography sx={{ fontSize: 10.5, color: THEME.muted }}>Live color preview</Typography>
+              </Box>
+              <Box sx={{ ml: "auto" }}>
+                <input
+                  aria-label="Choose RGB color"
+                  type="color"
+                  value={playlistHex}
+                  onChange={(e) => {
+                    const parsed = hexToRgb(e.target.value);
+                    if (parsed) setPlaylistRgb(parsed);
+                    setPlaylistRgbError("");
+                  }}
+                  style={{ width: 38, height: 34, padding: 2, background: "transparent", border: `1px solid ${THEME.border}`, borderRadius: 6, cursor: "pointer" }}
+                />
+              </Box>
+            </Box>
+            <Typography sx={{ fontSize: 11, color: THEME.muted }}>Enter RGB values (0–255) or choose a color above.</Typography>
+            <Stack direction="row" spacing={1}>
+              {(["r", "g", "b"]).map((channel) => (
+                <TextField
+                  key={channel}
+                  label={channel.toUpperCase()}
+                  size="small"
+                  value={playlistRgb[channel]}
+                  onChange={(e) => updatePlaylistRgb(channel, e.target.value)}
+                  inputProps={{ inputMode: "numeric", maxLength: 3 }}
+                  sx={{ ...fieldSx, flex: 1, minWidth: 0 }}
+                />
+              ))}
+            </Stack>
+            {playlistRgbError && <Typography sx={{ fontSize: 11, color: "#f87171" }}>{playlistRgbError}</Typography>}
+          </Stack>
+        </DialogContent>
+        <DialogActions sx={{ p: 2, pt: 0 }}>
+          <Button onClick={() => setColorDialogOpen(false)} sx={secondaryButtonSx}>Cancel</Button>
+          <Button onClick={handleSavePlaylistColor} disabled={!playlistRgbValid} variant="contained" disableElevation sx={primaryButtonSx}>Save Color</Button>
+        </DialogActions>
+      </Dialog>
+
       {/* ================= TABS ================= */}
       <Tabs
         value={tab}
@@ -1263,6 +1406,109 @@ function ColorControlPanel({ onApplyColor, onApplyDynamic, onApplySettings: onAp
                   Reset
                 </Button>
               </Stack>
+
+              <Button
+                fullWidth
+                variant="outlined"
+                startIcon={<AddIcon sx={{ fontSize: 16 }} />}
+                onClick={handleAddColorToPlaylist}
+                disabled={!isHexValid}
+                sx={{
+                  ...secondaryButtonSx,
+                  borderColor: THEME.accent,
+                  color: THEME.accent,
+                  "&:hover": {
+                    borderColor: THEME.accentHover,
+                    bgcolor: "rgba(0,201,107,0.10)",
+                  },
+                }}
+              >
+                Create Playlist Color
+              </Button>
+
+              <Section
+                icon={<LayersIcon sx={{ fontSize: 18, color: THEME.text }} />}
+                title="Color Playlist"
+                badge={`${colorPlaylist.length} colors`}
+              >
+                {colorPlaylist.length === 0 ? (
+                  <Typography sx={{ fontSize: 11, color: THEME.muted, textAlign: "center", py: 1.5 }}>
+                    No saved colors yet. Click Create Playlist Color to add one.
+                  </Typography>
+                ) : (
+                  <Stack spacing={0.6} sx={{ maxHeight: 150, overflowY: "auto" }}>
+                    {colorPlaylist.map((item, index) => {
+                      const selected = item.id === activePlaylistColorId;
+                      return (
+                        <Stack
+                          key={item.id}
+                          direction="row"
+                          alignItems="center"
+                          spacing={1}
+                          sx={{
+                            p: 0.65,
+                            borderRadius: 1,
+                            bgcolor: selected ? "rgba(0,201,107,0.12)" : THEME.field,
+                            border: `1px solid ${selected ? THEME.accent : THEME.border}`,
+                          }}
+                        >
+                          <Box
+                            sx={{
+                              width: 25,
+                              height: 25,
+                              flexShrink: 0,
+                              borderRadius: 0.75,
+                              bgcolor: item.hex,
+                              border: "1px solid rgba(255,255,255,0.35)",
+                            }}
+                          />
+                          <Box sx={{ flex: 1, minWidth: 0 }}>
+                            <Typography sx={{ fontSize: 11, color: THEME.text, fontWeight: 700 }}>
+                              {item.name || `Color ${index + 1}`}
+                            </Typography>
+                            <Typography sx={{ fontSize: 10, color: THEME.muted }}>
+                              {item.hex} · {item.mode}
+                            </Typography>
+                          </Box>
+                          <Button
+                            size="small"
+                            onClick={() => handleApplyPlaylistColor(item)}
+                            sx={{
+                              minWidth: 48,
+                              height: 25,
+                              px: 1,
+                              color: THEME.accent,
+                              fontSize: 10,
+                              textTransform: "none",
+                            }}
+                          >
+                            Apply
+                          </Button>
+                          <IconButton
+                            size="small"
+                            aria-label={`Remove ${item.hex} from playlist`}
+                            onClick={() => handleRemovePlaylistColor(item.id)}
+                            sx={{ color: THEME.muted, p: 0.5, "&:hover": { color: "#ef4444" } }}
+                          >
+                            <DeleteOutlineIcon sx={{ fontSize: 15 }} />
+                          </IconButton>
+                        </Stack>
+                      );
+                    })}
+                  </Stack>
+                )}
+                {colorPlaylist.length > 0 && (
+                  <Button
+                    fullWidth
+                    size="small"
+                    startIcon={<DeleteSweepIcon sx={{ fontSize: 14 }} />}
+                    onClick={handleClearColorPlaylist}
+                    sx={{ ...dangerButtonSx, mt: 0.75, height: 28, fontSize: 10 }}
+                  >
+                    Clear Playlist
+                  </Button>
+                )}
+              </Section>
             </Stack>
 
             {/* RIGHT: ADJUSTMENTS */}
