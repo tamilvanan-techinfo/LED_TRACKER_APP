@@ -149,7 +149,7 @@ function Status({ status, message }) {
   const Icon = connected ? CheckCircleIcon : ErrorOutlineIcon
 
   return (
-    <Stack direction="row" spacing={0.6} alignItems="center" sx={{ minWidth: 0 }}>
+    <Stack direction="row" spacing={0.6}  sx={{ minWidth: 0,alignItems:'center' }}>
       <Box sx={{
         width: 8, height: 8, borderRadius: '50%', bgcolor: color, flexShrink: 0,
         boxShadow: `0 0 7px ${color}66`,
@@ -288,7 +288,7 @@ export default function ModbusConfig({
     <Box sx={{
       width: '100%', bgcolor: COLORS.panel, color: COLORS.text,
       border: `1px solid ${COLORS.border}`, borderRadius: '10px',
-      overflow: 'hidden', boxSizing: 'border-box',
+      overflow: 'scroll', boxSizing: 'border-box',
     }}>
       {/* Panel header */}
       <Box sx={{ px: 1.4, py: 1, display: 'flex', alignItems: 'center', gap: 0.9 }}>
@@ -587,7 +587,7 @@ export default function ModbusConfig({
 
                   {/* Actions */}
                   <Divider sx={{ my: 1, borderColor: COLORS.border }} />
-                  <Stack direction="row" spacing={0.8} alignItems="center" flexWrap="wrap" useFlexGap>
+                  <Stack direction="row" spacing={0.8} sx={{alignItems:'center'}} flexWrap="wrap" useFlexGap>
                     <Button
                       size="small" variant="outlined" disabled={isBusy}
                       startIcon={<RefreshIcon sx={{ fontSize: 14 }} />}

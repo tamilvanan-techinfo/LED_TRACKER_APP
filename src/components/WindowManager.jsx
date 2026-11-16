@@ -1,5 +1,4 @@
-
-import React, { useState,useEffect } from "react";
+import React, { useState } from "react";
 
 import {
   Box,
@@ -11,7 +10,7 @@ import {
   MenuItem,
   Tooltip,
 } from "@mui/material";
-import { invoke } from "@tauri-apps/api/core";
+
 import MonitorIcon from "@mui/icons-material/Monitor";
 import AddIcon from "@mui/icons-material/Add";
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
@@ -19,37 +18,6 @@ import ImageIcon from "@mui/icons-material/Image";
 import PlayCircleOutlineIcon from "@mui/icons-material/PlayCircle";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 import ScreenShareIcon from "@mui/icons-material/ScreenShare";
-
-// --------------------------------------------------
-// WINDOW DATA
-// --------------------------------------------------
-
-const initialWindows = [
-  {
-    id: "WIN-001",
-    name: "Static Window 01",
-    type: "Static",
-    resolution: "1920 × 1080",
-    content: "Image",
-    active: true,
-  },
-  {
-    id: "WIN-002",
-    name: "Dynamic Window 02",
-    type: "Dynamic",
-    resolution: "1920 × 1080",
-    content: "Video",
-    active: false,
-  },
-  {
-    id: "WIN-003",
-    name: "Dynamic Window 03",
-    type: "Dynamic",
-    resolution: "1920 × 1080",
-    content: "Screen Share",
-    active: false,
-  },
-];
 
 // --------------------------------------------------
 // WINDOW THUMBNAIL
@@ -180,7 +148,7 @@ function WindowCard({
   selected,
   onSelect,
   onMenuClick,
-})  {
+}) {
   return (
     <Box
       onClick={onSelect}
@@ -376,54 +344,39 @@ function WindowCard({
 }
 
 // --------------------------------------------------
+// HELPERS
+// --------------------------------------------------
+
+// Static for images, Dynamic for video and screen share
+const typeFromContent = (content) =>
+  content === "Image" ? "Static" : "Dynamic";
+
+// Next number after the highest existing WIN-xxx id
+const getNextWindowNumber = (windows) =>
+  windows.reduce((max, item) => {
+    const number = parseInt(String(item.id).replace(/\D/g, ""), 10);
+
+    return Number.isNaN(number) ? max : Math.max(max, number);
+  }, 0) + 1;
+
+// --------------------------------------------------
 // WINDOW MANAGER
+// Windows and selection are controlled by the parent.
 // --------------------------------------------------
 
 function WindowManager({
+  windows = [],
+  selectedWindowId = null,
   onAddWindow,
   onEditWindow,
   onDeleteWindow,
   onSelectWindow,
-})  {
-
-  
-  const [windows, setWindows] = useState([]);
-
-  const [windowType, setWindowType] = useState("Static");
-
-  const [selectedWindow, setSelectedWindow] = useState("WIN-001");
-
+}) {
   const [addMenuAnchor, setAddMenuAnchor] = useState(null);
 
   const [windowMenuAnchor, setWindowMenuAnchor] = useState(null);
 
   const [menuWindow, setMenuWindow] = useState(null);
-
-  // ----------------------------------------------
-  // SELECT WINDOW
-  // ----------------------------------------------
-
-  useEffect(() => {
-    const window = async () => {
-      const result = await invoke("get_all_windows");
-      console.log("Windows from Rust:", result);
-      setWindows(result); 
-    }
-    window()
-  }, []);
-
-  const handleSelectWindow = (windowData) => {
-    setSelectedWindow(windowData.id);
-
-    setWindows((previous) =>
-      previous.map((item) => ({
-        ...item,
-        active: item.id === windowData.id,
-      }))
-    );
-
-    onSelectWindow?.(windowData);
-  };
 
   // ----------------------------------------------
   // ADD WINDOW
@@ -432,21 +385,24 @@ function WindowManager({
   const handleAddWindow = (content) => {
     setAddMenuAnchor(null);
 
+    const number = getNextWindowNumber(windows);
+    const type = typeFromContent(content);
+
     const newWindow = {
-      id: `WIN-${String(windows.length + 1).padStart(3, "0")}`,
+      id: `WIN-${String(number).padStart(3, "0")}`,
 
-      name: `${windowType} Window ${String(windows.length + 1).padStart(2, "0")}`,
+      name: `${type} Window ${String(number).padStart(2, "0")}`,
 
-      type: windowType,
+      type,
 
       resolution: "1920 × 1080",
+
+      position: "(0, 0)",
 
       content,
 
       active: false,
     };
-
-    setWindows((previous) => [...previous, newWindow]);
 
     onAddWindow?.(newWindow);
   };
@@ -461,32 +417,20 @@ function WindowManager({
     setMenuWindow(windowData);
   };
 
-  // ----------------------------------------------
-  // EDIT WINDOW
-  // ----------------------------------------------
+  const closeWindowMenu = () => {
+    setWindowMenuAnchor(null);
+  };
 
   const handleEdit = () => {
-    setWindowMenuAnchor(null);
+    closeWindowMenu();
 
     onEditWindow?.(menuWindow);
   };
 
-  // ----------------------------------------------
-  // DELETE WINDOW
-  // ----------------------------------------------
-
   const handleDelete = () => {
-    setWindowMenuAnchor(null);
+    closeWindowMenu();
 
     if (!menuWindow) return;
-
-    setWindows((previous) =>
-      previous.filter((item) => item.id !== menuWindow.id)
-    );
-
-    if (selectedWindow === menuWindow.id) {
-      setSelectedWindow(null);
-    }
 
     onDeleteWindow?.(menuWindow);
   };
@@ -498,28 +442,26 @@ function WindowManager({
   return (
     <Box
       sx={{
-            width: "100%",
+        width: "100%",
 
-            // Responsive height
-            height: "clamp(180px, 35vh, 280px)",
-            minHeight: 500,
-            maxHeight: 500,
+        // Responsive height
+        height: "clamp(180px, 35vh, 280px)",
+        minHeight:  280,
+        maxHeight: 280,
 
-            minWidth: 0,
+        minWidth: 0,
 
-            display: "flex",
-            flexDirection: "column",
+        display: "flex",
+        flexDirection: "column",
 
-            bgcolor: "#151f2d",
-            borderRadius: 2,
+        bgcolor: "#151f2d",
+        borderRadius: 2,
 
-            overflow: "hidden",
-            boxSizing: "border-box",
-            }}
+        overflow: "hidden",
+        boxSizing: "border-box",
+      }}
     >
-      {/* -------------------------------- */}
       {/* HEADER */}
-      {/* -------------------------------- */}
 
       <Stack
         direction="row"
@@ -558,9 +500,7 @@ function WindowManager({
         </Typography>
       </Stack>
 
-      {/* -------------------------------- */}
       {/* ADD WINDOW */}
-      {/* -------------------------------- */}
 
       <Box
         sx={{
@@ -645,147 +585,28 @@ function WindowManager({
             },
           }}
         >
-          <MenuItem
-            onClick={() => handleAddWindow("Image")}
-          >
+          <MenuItem onClick={() => handleAddWindow("Image")}>
             <ImageIcon sx={{ mr: 1, fontSize: 18 }} />
             Static Image
           </MenuItem>
 
-          <MenuItem
-            onClick={() => handleAddWindow("Video")}
-          >
+          <MenuItem onClick={() => handleAddWindow("Video")}>
             <PlayCircleOutlineIcon sx={{ mr: 1, fontSize: 18 }} />
             Dynamic Video
           </MenuItem>
 
-          <MenuItem
-            onClick={() => handleAddWindow("Screen Share")}
-          >
+          <MenuItem onClick={() => handleAddWindow("Screen Share")}>
             <ScreenShareIcon sx={{ mr: 1, fontSize: 18 }} />
             Screen Share
           </MenuItem>
         </Menu>
       </Box>
 
-      {/* -------------------------------- */}
-      {/* WINDOW TYPE */}
-      {/* -------------------------------- */}
+      {/* SPACER */}
 
-      <Box
-        sx={{
-          px: 0.75,
+      <Box sx={{ height: 12, flexShrink: 0 }} />
 
-          pt: 1.25,
-          pb: 0.75,
-
-          flexShrink: 0,
-
-          minWidth: 0,
-        }}
-      >
-
-
-        <Stack
-          direction="row"
-          spacing={0.5}
-          sx={{
-            p: 0.35,
-
-            minWidth: 0,
-
-            borderRadius: 1.5,
-
-            bgcolor: "#202c3c",
-          }}
-        >
-          {/* STATIC */}
-
-          <Button
-            fullWidth
-            startIcon={
-              <ImageIcon
-                sx={{
-                  fontSize: "15px !important",
-                }}
-              />
-            }
-            onClick={() => setWindowType("Static")}
-            sx={{
-              height: 27,
-
-              minHeight: 27,
-
-              borderRadius: 1.25,
-
-              bgcolor: windowType === "Static"
-                ? "#00c96b"
-                : "transparent",
-
-              color: "#ffffff",
-
-              fontSize: 10.5,
-
-              fontWeight: 700,
-
-              textTransform: "none",
-
-              "&:hover": {
-                bgcolor: windowType === "Static"
-                  ? "#00b85f"
-                  : "rgba(255,255,255,0.05)",
-              },
-            }}
-          >
-            Static
-          </Button>
-
-          {/* DYNAMIC */}
-
-          <Button
-            fullWidth
-            startIcon={
-              <PlayCircleOutlineIcon
-                sx={{
-                  fontSize: "15px !important",
-                }}
-              />
-            }
-            onClick={() => setWindowType("Dynamic")}
-            sx={{
-              height: 27,
-
-              minHeight: 27,
-
-              borderRadius: 1.25,
-
-              bgcolor: windowType === "Dynamic"
-                ? "#00c96b"
-                : "transparent",
-
-              color: "#ffffff",
-
-              fontSize: 10.5,
-
-              fontWeight: 700,
-
-              textTransform: "none",
-
-              "&:hover": {
-                bgcolor: windowType === "Dynamic"
-                  ? "#00b85f"
-                  : "rgba(255,255,255,0.05)",
-              },
-            }}
-          >
-            Dynamic
-          </Button>
-        </Stack>
-      </Box>
-
-      {/* -------------------------------- */}
       {/* WINDOW LIST */}
-      {/* -------------------------------- */}
 
       <Box
         sx={{
@@ -850,11 +671,10 @@ function WindowManager({
               boxSizing: "border-box",
             }}
           >
-            {console.log("Rendering WindowCard for:", windowData)}
             <WindowCard
               windowData={windowData}
-              selected={selectedWindow === windowData.id}
-              onSelect={() => handleSelectWindow(windowData)}
+              selected={selectedWindowId === windowData.id}
+              onSelect={() => onSelectWindow?.(windowData)}
               onMenuClick={handleWindowMenu}
             />
           </Box>
@@ -892,14 +712,12 @@ function WindowManager({
         )}
       </Box>
 
-      {/* -------------------------------- */}
       {/* WINDOW OPTIONS MENU */}
-      {/* -------------------------------- */}
 
       <Menu
         anchorEl={windowMenuAnchor}
         open={Boolean(windowMenuAnchor)}
-        onClose={() => setWindowMenuAnchor(null)}
+        onClose={closeWindowMenu}
         slotProps={{
           paper: {
             sx: {

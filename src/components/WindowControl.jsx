@@ -13,6 +13,7 @@ import PowerSettingsNewIcon from "@mui/icons-material/PowerSettingsNew";
 import MonitorIcon from "@mui/icons-material/Monitor";
 import PlayCircleOutlineIcon from "@mui/icons-material/PlayCircle";
 import SettingsPowerIcon from "@mui/icons-material/SettingsPower";
+import DashboardIcon from "@mui/icons-material/Dashboard";
 
 // --------------------------------------------------
 // INITIAL WINDOW DATA
@@ -21,14 +22,26 @@ import SettingsPowerIcon from "@mui/icons-material/SettingsPower";
 const initialWindows = [
   {
     id: "WIN-001",
-    name: "Static Window 01",
+    name: "Static Window RGB",
     type: "Static",
     enabled: true,
   },
   {
     id: "WIN-002",
+    name: "Static Window CMYK",
+    type: "Static",
+    enabled: true,
+  },
+  {
+    id: "WIN-003",
     name: "Dynamic Window 02",
     type: "Dynamic",
+    enabled: true,
+  },
+  {
+    id: "WIN-004",
+    name: "Live Dashboard Window",
+    type: "Dashboard",
     enabled: true,
   },
 ];
@@ -134,6 +147,58 @@ function WindowSwitch({
 }
 
 // --------------------------------------------------
+// WINDOW ICON (by window type)
+// --------------------------------------------------
+
+function WindowTypeIcon({ type }) {
+  if (type === "Static") {
+    return (
+      <MonitorIcon
+        sx={{
+          fontSize: {
+            xs: 14,
+            sm: 16,
+            md: 18,
+          },
+
+          color: "#e2e8f0",
+        }}
+      />
+    );
+  }
+
+  if (type === "Dashboard") {
+    return (
+      <DashboardIcon
+        sx={{
+          fontSize: {
+            xs: 14,
+            sm: 16,
+            md: 18,
+          },
+
+          color: "#e2e8f0",
+        }}
+      />
+    );
+  }
+
+  return (
+    <PlayCircleOutlineIcon
+      sx={{
+        fontSize: {
+          xs: 15,
+          sm: 17,
+          md: 19,
+        },
+
+        color: "#e2e8f0",
+      }}
+    />
+  );
+}
+
+// --------------------------------------------------
 // RESPONSIVE WINDOW ITEM
 // --------------------------------------------------
 
@@ -141,8 +206,6 @@ function WindowItem({
   windowData,
   onToggle,
 }) {
-  const isStatic = windowData.type === "Static";
-
   return (
     <Box
       sx={{
@@ -240,31 +303,7 @@ function WindowItem({
           boxSizing: "border-box",
         }}
       >
-        {isStatic ? (
-          <MonitorIcon
-            sx={{
-              fontSize: {
-                xs: 14,
-                sm: 16,
-                md: 18,
-              },
-
-              color: "#e2e8f0",
-            }}
-          />
-        ) : (
-          <PlayCircleOutlineIcon
-            sx={{
-              fontSize: {
-                xs: 15,
-                sm: 17,
-                md: 19,
-              },
-
-              color: "#e2e8f0",
-            }}
-          />
-        )}
+        <WindowTypeIcon type={windowData.type} />
       </Box>
 
       {/* RESPONSIVE WINDOW NAME */}
@@ -387,8 +426,8 @@ function WindowControl({
         // Responsive parent height
         height: "clamp(220px, 32vh, 320px)",
 
-        minHeight: 180,
-        maxHeight: 180,
+        minHeight: 260,
+        maxHeight: 260,
 
         display: "flex",
 
@@ -688,4 +727,4 @@ function WindowControl({
   );
 }
 
-export default WindowControl;
+export default WindowControl; 

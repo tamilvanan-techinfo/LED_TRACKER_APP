@@ -41,6 +41,7 @@ rusqlite = { version = "0.41", features = ["bundled"] }
 
 # Environment variables
 dotenvy = "0.15"
+tower-http = { version = "0.7.1", features = ["cors"] }
 
 # Release configuration
 [profile.release]

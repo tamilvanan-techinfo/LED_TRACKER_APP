@@ -1,137 +1,206 @@
 # LED Tracker App
 
-A desktop application for managing LED display windows and monitoring their status in a dashboard-style control panel. The project combines a React + MUI frontend with a Rust + Tauri backend, a local SQLite database, and lightweight HTTP/WebSocket services for status and communication endpoints.
-
-## Overview
-
-This app is designed to manage multiple display windows with different content types such as static images, dynamic video, and screen-share sources. It provides a single control surface for creating, selecting, enabling, and inspecting windows, while the backend persists configuration in SQLite and exposes health/status data.
+A desktop application for configuring LED display windows and monitoring them
+from a dashboard. The frontend is built with React and Material UI, the desktop
+shell and backend use Tauri and Rust, and window configuration is stored in
+SQLite.
 
 ## Features
 
-- Window management dashboard
-  - Add, select, edit, and delete display windows
-  - Toggle individual windows on/off
-  - Toggle all windows at once
-- Static and dynamic window types
-  - Static image windows
-  - Dynamic video windows
-  - Screen share windows
-- Detailed window inspection panel
-  - Name, ID, type, resolution, position, and status
-- Local persistence using SQLite
-- Tauri desktop shell with a frontend built in React and MUI
-- Backend APIs for health checks and LED status retrieval
-- WebSocket echo server for live message handling
+- Create, edit, select, enable, and delete LED display windows
+- View window type, resolution, position, and status
+- Persist window configuration locally in SQLite
+- Communicate with the Rust backend through Tauri commands, HTTP, and WebSocket
 
-## Tech Stack
+## Technology
 
 - Frontend: React 19, Vite, Material UI
-- Desktop shell: Tauri 2
+- Desktop: Tauri 2
 - Backend: Rust, Tokio, Axum
-- Persistence: SQLite via rusqlite
-- Real-time communication: tokio-tungstenite
+- Database: SQLite (`rusqlite`)
+- WebSocket: `tokio-tungstenite`
 
-## Project Structure
+## Project structure
 
 ```text
 LED_TRACKER_APP/
-├── src/                          # React frontend
-│   ├── components/               # Dashboard widgets and controls
-│   ├── screen/                   # Main application layout
-│   ├── App.jsx                  # App entry
-│   └── main.jsx                 # Frontend bootstrap
-├── src-tauri/                   # Tauri/Rust application
+├── public/                         # Static files served by Vite
+├── src/                            # React frontend
+│   ├── assets/                     # Frontend assets
+│   ├── components/                 # Dashboard, window, and control panels
+│   ├── context/                    # Shared React state
+│   ├── screen/                     # Application screens (Dashboard)
+│   ├── utils/                      # Frontend helpers and theme
+│   ├── App.jsx                     # Application component
+│   ├── App.css                     # Application styles
+│   └── main.jsx                    # Frontend entry point
+├── src-tauri/                      # Tauri desktop application
+│   ├── capabilities/               # Tauri permissions
+│   ├── data/                       # Local SQLite database
+│   ├── icons/                      # Application icons
 │   ├── src/
-│   │   ├── database/             # SQLite setup and schema
-│   │   ├── modules/              # API, socket, and backend modules
-│   │   ├── lib.rs                # Tauri app bootstrap
-│   │   └── main.rs               # Application entry
-│   └── Cargo.toml                # Rust dependencies
-├── public/                      # Static assets
-├── package.json                 # Frontend scripts and dependencies
-├── vite.config.js               # Vite configuration
-├── index.html                   # App HTML shell
-├── README.md                    # Project documentation
-└── .gitignore                   # Git ignore rules
+│   │   ├── database.rs             # Database module declaration
+│   │   ├── database/
+│   │   │   └── connection.rs       # SQLite setup, migrations, and connection
+│   │   ├── modules.rs              # Backend module declarations
+│   │   ├── modules/
+│   │   │   ├── api.rs              # Tauri API module declaration
+│   │   │   ├── api/
+│   │   │   │   └── window_api.rs   # Tauri window commands
+│   │   │   ├── response.rs         # Shared API response envelope
+│   │   │   ├── server_api/
+│   │   │   │   ├── handlers/       # Axum request handlers
+│   │   │   │   ├── models/         # HTTP response models
+│   │   │   │   ├── services/       # Database-backed window queries
+│   │   │   │   ├── main.rs         # HTTP server startup
+│   │   │   │   └── routes.rs       # HTTP route definitions
+│   │   │   └── socket_server.rs    # WebSocket server and window resolution
+│   │   ├── lib.rs                  # Tauri setup and service startup
+│   │   ├── main.rs                 # Native application entry point
+│   ├── Cargo.toml                  # Rust dependencies and build settings
+│   ├── tauri.conf.json             # Tauri application configuration
+│   └── build.rs                    # Tauri build script
+├── package.json                    # Frontend dependencies and scripts
+├── vite.config.js                  # Vite configuration
+├── index.html                      # Frontend HTML shell
+└── README.md
 ```
 
-## Backend API
+## Backend services
 
-The Rust backend exposes lightweight endpoints:
+The desktop app starts an HTTP server at `http://127.0.0.1:8765` and a
+WebSocket server at `ws://0.0.0.0:9001`.
 
-- `GET /health` — Health check endpoint
-- `GET /api/led/status` — Returns a JSON status object with LED state and power values
-- Fallback 404 handler for invalid routes
+### HTTP
 
-Example health response:
+- `GET http://127.0.0.1:8765/api/windows` — return the configured windows.
+
+### Tauri commands
+
+The `create_playlist_color` command saves a named color for a window in the
+`playlist_color` table. Invoke it with a `playlist` object containing the
+database window ID, name, and JSON color data:
+
+```js
+import { invoke } from "@tauri-apps/api/core";
+
+await invoke("create_playlist_color", {
+  playlist: {
+    windowId: 1,
+    name: "Warm orange",
+    color: {
+      hex: "#FF5521",
+      c: 0,
+      m: 67,
+      y: 87,
+      k: 0,
+    },
+  },
+});
+```
+
+Saving a new color in the RGB or CMYK playlist dialog now invokes this command
+for that tab's configured window ID.
+
+The `get_playlist_colors` command lists saved colors for one window:
+
+```js
+const colors = await invoke("get_playlist_colors", { windowId: 2 });
+```
+
+`update_playlist_color` accepts `{ playlist: { id, name, color } }`.
+`delete_playlist_color` accepts `{ id }`, and `clear_playlist_colors` accepts
+`{ windowId }` to clear only that window's playlist. The color panel uses these
+commands for edit, remove, and clear actions.
+
+The color panel loads window `1` for the RGB playlist and window `2` for the
+CMYK playlist when it opens.
+
+### WebSocket
+
+The root socket URL (`ws://127.0.0.1:9001/`) keeps the existing behavior: it
+sends the current windows when a client connects, echoes text messages, and
+receives messages broadcast by the app.
+
+To get one window's resolution, connect using its database ID in the URL path:
+
+```text
+ws://127.0.0.1:9001/windows/{window_id}/resolution
+```
+
+For example:
+
+```js
+const socket = new WebSocket(
+  "ws://127.0.0.1:9001/windows/1/resolution",
+);
+
+socket.addEventListener("message", ({ data }) => {
+  console.log(JSON.parse(data));
+});
+```
+
+The path accepts a numeric database ID (for example `1`) or the display ID
+format used by the UI (for example `WIN-001`). On connection, the server sends
+an envelope with the selected window's dimensions and formatted resolution:
 
 ```json
 {
-  "success": true,
-  "message": "LED backend is running",
-  "data": "OK"
+  "status": true,
+  "message": "Window resolution retrieved",
+  "data": {
+    "windowId": 1,
+    "name": "Static Window RGB",
+    "width": 200,
+    "height": 100,
+    "resolution": "200 × 100"
+  }
 }
 ```
 
-The app also starts a WebSocket server on `ws://0.0.0.0:9001` that echoes incoming text messages back to the client.
+If the ID is invalid or does not exist, the server sends a response with
+`"status": false` and an explanatory message.
 
-## Local Database
+To send data only to the client connected for a window, call the registered
+Tauri `send_message` command. The `windowId` argument accepts either the
+numeric database ID or its `WIN-###` display ID. For an image, pass its URL or
+data URL as part of the message:
 
-The app initializes a local SQLite database at:
+```js
+import { invoke } from "@tauri-apps/api/core";
 
-```text
-src-tauri/data/LED CONTROL PANEL.db
+await invoke("send_message", {
+  message: { type: "image", src: "data:image/png;base64,..." },
+  windowId: "WIN-001",
+});
 ```
 
-The database contains a `window` table with fields for:
+The dashboard sends tab actions to their configured windows: RGB Static
+Content uses ID `1`, CMYK Static Content uses ID `2`, and Dynamic Content uses
+ID `3`.
 
-- `id`
-- `name`
-- `height`
-- `width`
-- `position_x`
-- `position_y`
-- `status`
+The corresponding WebSocket must already be connected to that window's
+resolution URL. The command returns the number of connected clients that
+received the message, or an error if no client is connected for that ID.
 
-## Prerequisites
+## Local database
 
-Before running the app, ensure you have:
+The backend creates and migrates `data/LED CONTROL PANEL.db` under the
+application's working directory. The `window` table stores each window's ID,
+category, name, height, width, position, and status.
 
-- Node.js 18 or newer
-- npm
-- Rust stable toolchain and Cargo
-- Tauri platform dependencies for your operating system
+## Getting started
 
-## Getting Started
-
-1. Install frontend dependencies:
+Prerequisites: Node.js 18+, npm, Rust stable with Cargo, and the Tauri
+platform dependencies for your operating system.
 
 ```bash
 npm install
-```
-
-2. Start the development app:
-
-```bash
 npm run tauri dev
 ```
 
-3. Optional: build the app for production:
+To build the desktop application:
 
 ```bash
 npm run tauri build
 ```
-
-## Development Notes
-
-This project is currently structured as an early-stage desktop control panel. The frontend is fully styled for a dashboard experience, while the backend provides the foundation for persistence and status APIs that can be extended for real hardware control or richer LED management features.
-
-## Recommended IDE Setup
-
-- [VS Code](https://code.visualstudio.com/)
-- [Tauri VS Code extension](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode)
-- [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)
-
-## License
-
-This project does not currently declare a license. Add a license file if you plan to distribute or publish the application.

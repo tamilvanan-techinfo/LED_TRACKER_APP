@@ -13,6 +13,7 @@ pub struct Window {
     pub position_x: i32,
     pub position_y: i32,
     pub status: bool,
+    pub fullscreen: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -24,6 +25,8 @@ pub struct CreateWindow {
     pub position_x: i32,
     pub position_y: i32,
     pub status: bool,
+    #[serde(default)]
+    pub fullscreen: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -36,6 +39,7 @@ pub struct UpdateWindow {
     pub position_x: i32,
     pub position_y: i32,
     pub status: bool,
+    pub fullscreen: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -52,6 +56,8 @@ pub struct WindowItem {
     pub left: i32,
     pub top: i32,
     pub active: bool,
+    pub status: bool,
+    pub fullscreen: bool,
 }
 
 fn map_window(row: &Row<'_>) -> rusqlite::Result<Window> {
@@ -64,6 +70,7 @@ fn map_window(row: &Row<'_>) -> rusqlite::Result<Window> {
         position_x: row.get("position_x")?,
         position_y: row.get("position_y")?,
         status: row.get("status")?,
+        fullscreen: row.get("fullscreen")?,
     })
 }
 
@@ -72,6 +79,8 @@ fn map_window_item(row: &Row<'_>) -> rusqlite::Result<WindowItem> {
     let category_id: i32 = row.get("category_id")?;
     let width: i32 = row.get("width")?;
     let height: i32 = row.get("height")?;
+    let status: bool = row.get("status")?;
+    let fullscreen: bool = row.get("fullscreen")?;
 
     let window_type = match category_id {
         1 => "Static",
@@ -98,6 +107,8 @@ fn map_window_item(row: &Row<'_>) -> rusqlite::Result<WindowItem> {
         left: row.get("position_x")?,
         top: row.get("position_y")?,
         active: false,
+        status,
+        fullscreen,
     })
 }
 
@@ -115,9 +126,10 @@ pub fn create_window(window: CreateWindow) -> Result<Window, String> {
                 width,
                 position_x,
                 position_y,
-                status
+                status,
+                fullscreen
             )
-            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
             ",
             params![
                 window.category_id,
@@ -126,7 +138,8 @@ pub fn create_window(window: CreateWindow) -> Result<Window, String> {
                 window.width,
                 window.position_x,
                 window.position_y,
-                window.status
+                window.status,
+                window.fullscreen
             ],
         )
         .map_err(|error| error.to_string())?;
@@ -150,7 +163,9 @@ pub fn get_all_windows() -> Result<Vec<WindowItem>, String> {
                 height,
                 width,
                 position_x,
-                position_y
+                position_y,
+                status,
+                fullscreen
             FROM window
             ORDER BY id
             ",
@@ -188,7 +203,8 @@ fn get_window_by_id_from_connection(
                 width,
                 position_x,
                 position_y,
-                status
+                status,
+                fullscreen
             FROM window
             WHERE id = ?1
             ",
@@ -213,8 +229,9 @@ pub fn update_window(window: UpdateWindow) -> Result<Window, String> {
                 width = ?4,
                 position_x = ?5,
                 position_y = ?6,
-                status = ?7
-            WHERE id = ?8
+                status = ?7,
+                fullscreen = ?8
+            WHERE id = ?9
             ",
             params![
                 window.category_id,
@@ -224,6 +241,7 @@ pub fn update_window(window: UpdateWindow) -> Result<Window, String> {
                 window.position_x,
                 window.position_y,
                 window.status,
+                window.fullscreen,
                 window.id
             ],
         )
